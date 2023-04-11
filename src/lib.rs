@@ -35,7 +35,7 @@ impl ImpulseResponse {
         let (dsi, ersi, erei) =
             self.get_edt_and_rt60_slope(&mut noise, sample_rate);
         self.randomize_reflections(&mut noise, dsi, ersi, erei, sample_rate);
-        noise
+        noise[dsi..].to_vec()
     }
 
     fn get_edt_and_rt60_slope(
@@ -68,18 +68,8 @@ impl ImpulseResponse {
 
         // Shape the RT60 slope of the IR (after EDT)
         for i in edt_num_samples..rt60_num_samples {
-            /*
-            println!(
-                "i: {} edt_num_samples: {} rt60_num_samples: {} first: {}",
-                i,
-                edt_num_samples,
-                rt60_num_samples,
-                (i as f32 - (edt_num_samples as f32 + 1.0))
-            );
-            */
             // Something like this (2205 - (2205 + 1)) * 50 / 22050
-            data[i as usize] -= (i as f32 - (edt_num_samples as f32 + 1.0)) as f32
-                * 50.0
+            data[i as usize] -= (i as f32 - (edt_num_samples as f32 + 1.0)) * 50.0
                 / rt60_num_samples as f32;
         }
 
@@ -112,16 +102,9 @@ impl ImpulseResponse {
         direct_sound_idx: usize,
         early_ref_start: usize,
         early_ref_end: usize,
-        // drr: f32,
-        // itdg: f32,
         sampling_rate: u32,
     ) {
-        self.create_initial_time_delay_gap(
-            data,
-            direct_sound_idx,
-            // self.itdg,
-            sampling_rate,
-        );
+        self.create_initial_time_delay_gap(data, direct_sound_idx, sampling_rate);
 
         let drr_low = self.drr - 0.5;
         let drr_high = self.drr + 0.5;
@@ -161,15 +144,14 @@ impl ImpulseResponse {
         }
     }
 
+    /// Random noize (white)
     fn get_noise(&self, sample_rate: u32) -> Vec<f32> {
         let num_samples = Self::get_num_samples(
             Duration::from_millis(self.rt60.round() as u64),
             sample_rate,
         );
         let mut rng = rand::thread_rng();
-        let noise: Vec<f32> =
-            (0..num_samples).map(|_| rng.gen_range(-5.0..5.0)).collect();
-        noise
+        (0..num_samples).map(|_| rng.gen_range(-5.0..5.0)).collect()
     }
 
     fn create_initial_time_delay_gap(
