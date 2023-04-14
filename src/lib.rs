@@ -1,6 +1,9 @@
-use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
-
+use ndarray::prelude::*;
+use ndarray_rand::{
+    rand::seq::SliceRandom, rand::thread_rng, rand_distr::Uniform, RandomExt,
+};
+use ndarray_stats::QuantileExt;
+use std::cmp::Ordering;
 use std::time::Duration;
 
 // Stochastic impulse response.
@@ -19,8 +22,16 @@ pub struct ImpulseResponse {
     drr: f32,
 }
 
+/// Convert units from decibels to gain
+pub fn decibels_to_gain(decibels: f32) -> f32 {
+    10.0_f32.powf(decibels / 20.0)
+}
+
 impl ImpulseResponse {
     pub fn new(rt60: f32, edt: f32, itdg: f32, er_duration: f32, drr: f32) -> Self {
+        if rt60 <= edt {
+            panic!("Reverb time (rt60) can't be lower than Early decay time (edt)")
+        };
         Self {
             rt60,
             edt,
@@ -30,17 +41,27 @@ impl ImpulseResponse {
         }
     }
 
+    /// Generate impulse response
     pub fn generate(&self, sample_rate: u32) -> Vec<f32> {
         let mut noise = self.get_noise(sample_rate);
         let (dsi, ersi, erei) =
             self.get_edt_and_rt60_slope(&mut noise, sample_rate);
         self.randomize_reflections(&mut noise, dsi, ersi, erei, sample_rate);
-        noise[dsi..].to_vec()
+        noise.into_raw_vec()[dsi..].to_vec()
+    }
+
+    /// Random noize (white)
+    fn get_noise(&self, sample_rate: u32) -> Array1<f32> {
+        let num_samples = Self::get_num_samples(
+            Duration::from_millis(self.rt60.round() as u64),
+            sample_rate,
+        );
+        Array1::random(num_samples as usize, Uniform::new(-5.0, 5.0))
     }
 
     fn get_edt_and_rt60_slope(
         &self,
-        data: &mut Vec<f32>,
+        data: &mut Array1<f32>,
         sample_rate: u32,
     ) -> (usize, usize, usize) {
         let edt_num_samples = Self::get_num_samples(
@@ -56,49 +77,48 @@ impl ImpulseResponse {
             sample_rate,
         );
 
+        // Shape the EDT slope of the IR
         for i in 0..(edt_num_samples - 1) as usize {
             data[i] -= i as f32;
         }
         for i in (edt_num_samples - 1) as usize..data.len() {
             data[i] -= (edt_num_samples - 1) as f32;
         }
-        for value in data.iter_mut() {
-            *value *= 10.0 / edt_num_samples as f32;
-        }
+        *data *= 10.0 / edt_num_samples as f32;
 
         // Shape the RT60 slope of the IR (after EDT)
         for i in edt_num_samples..rt60_num_samples {
-            // Something like this (2205 - (2205 + 1)) * 50 / 22050
-            data[i as usize] -= (i as f32 - (edt_num_samples as f32 + 1.0)) * 50.0
+            data[i as usize] -= (i as f32 - (edt_num_samples + 1) as f32) * 50.0
                 / rt60_num_samples as f32;
         }
 
-        let max_y = data.iter().cloned().fold(f32::MIN, f32::max);
-        for value in data.iter_mut() {
-            *value -= max_y;
-            let gain = 10_f32.powf(*value / 20.0); // decibels to gain
-            *value = gain * gain;
-        }
+        // Change scale to dBFS (0 dB becomes the maximal level)
+        let max_val = data.max().unwrap_or(&0.0).clone();
+        *data -= max_val;
+        data.mapv_inplace(decibels_to_gain);
+        data.mapv_inplace(|x| x.powi(2));
 
         // Assign values to specific time points in the IR
         let direct_sound_idx = data
             .iter()
+            .cloned()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal))
             .map(|(i, _)| i)
             .unwrap_or(0);
 
-        let er_start_idx = std::cmp::min(direct_sound_idx + 1, data.len() - 1);
-        let er_end_idx = std::cmp::min(
-            er_start_idx + er_duration_num_samples as usize,
-            data.len() - 1,
-        );
+        // If any of the parameters like er_duration set in config exceed the length
+        // of the whole IR, then we just treat the last idx of the IR as the start/end point
+        let er_start_idx = (direct_sound_idx + 1).min(data.len() - 1);
+        let er_end_idx =
+            (er_start_idx + er_duration_num_samples as usize).min(data.len() - 1);
+
         (direct_sound_idx, er_start_idx, er_end_idx)
     }
 
     fn randomize_reflections(
         &self,
-        data: &mut Vec<f32>,
+        data: &mut Array1<f32>,
         direct_sound_idx: usize,
         early_ref_start: usize,
         early_ref_end: usize,
@@ -110,7 +130,7 @@ impl ImpulseResponse {
         let drr_high = self.drr + 0.5;
 
         let mut current_drr =
-            Self::calculate_drr_energy_ratio(data, direct_sound_idx);
+            Self::calculate_drr_energy_ratio(&data, direct_sound_idx);
 
         if current_drr > drr_high {
             return;
@@ -144,43 +164,40 @@ impl ImpulseResponse {
         }
     }
 
-    /// Random noize (white)
-    fn get_noise(&self, sample_rate: u32) -> Vec<f32> {
-        let num_samples = Self::get_num_samples(
-            Duration::from_millis(self.rt60.round() as u64),
-            sample_rate,
-        );
-        let mut rng = rand::thread_rng();
-        (0..num_samples).map(|_| rng.gen_range(-5.0..5.0)).collect()
-    }
-
     fn create_initial_time_delay_gap(
         &self,
-        data: &mut Vec<f32>,
+        data: &mut Array1<f32>,
         direct_sound_idx: usize,
-        sampling_rate: u32,
+        sample_rate: u32,
     ) {
-        let itdg_num_samples = (self.itdg * sampling_rate as f32).round() as usize;
-        let itdg_end_idx =
-            std::cmp::min(direct_sound_idx + 1 + itdg_num_samples, data.len() - 1);
-        for value in data
+        let itdg_num_samples = Self::get_num_samples(
+            Duration::from_millis(self.itdg.round() as u64),
+            sample_rate,
+        );
+        let itdg_end_idx = usize::min(
+            direct_sound_idx + 1 + itdg_num_samples as usize,
+            data.len() - 1,
+        );
+        for elem in data
+            .slice_mut(s![direct_sound_idx + 1..itdg_end_idx])
             .iter_mut()
-            .take(itdg_end_idx)
-            .skip(direct_sound_idx + 1)
         {
-            *value = 0.0;
+            *elem = 0.0;
         }
     }
 
-    fn calculate_drr_energy_ratio(data: &[f32], direct_sound_idx: usize) -> f32 {
-        let direct = data.iter().take(direct_sound_idx + 1).sum::<f32>();
-        let reverberant = data.iter().skip(direct_sound_idx + 1).sum::<f32>();
-        let drr = 10.0 * (direct / reverberant).log10();
+    fn calculate_drr_energy_ratio(
+        data: &Array1<f32>,
+        direct_sound_idx: usize,
+    ) -> f32 {
+        let direct = data.slice(s![..=direct_sound_idx]).sum();
+        let reverberant = data.slice(s![direct_sound_idx + 1..]).sum();
+        let drr = 10.0 * ((direct / reverberant).log10());
         drr
     }
 
     fn thin_out_reflections(
-        data: &mut Vec<f32>,
+        data: &mut Array1<f32>,
         start_idx: usize,
         end_idx: usize,
         rate: f32,
@@ -188,7 +205,7 @@ impl ImpulseResponse {
         let ray_indices: Vec<usize> = (start_idx..=end_idx)
             .filter(|&idx| data[idx] != 0.0)
             .collect();
-        let num_rays = (ray_indices.len() as f32 * rate).round() as usize;
+        let num_rays = ((ray_indices.len() as f32) * rate).round() as usize;
         assert!(num_rays >= 1);
 
         let mut rng = thread_rng();
@@ -197,7 +214,7 @@ impl ImpulseResponse {
             .cloned()
             .collect();
 
-        for index in random_subset {
+        for &index in random_subset.iter() {
             data[index] = 0.0;
         }
     }

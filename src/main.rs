@@ -1,5 +1,5 @@
 use clap::Parser;
-use rand::Rng;
+use ndarray_rand::rand::Rng;
 use storir_rs::ImpulseResponse;
 
 #[derive(Parser, Debug)]
@@ -38,7 +38,7 @@ fn main() {
     println!("Saving impulses to {}!", args.folder);
 
     let rt60: f32 = 500.0;
-    let mut rng = rand::thread_rng();
+    let mut rng = ndarray_rand::rand::thread_rng();
     let drr = (rt60 * (-1.0 / 100.0)) + rng.gen_range(0.0..rt60 * (1.0 / 100.0));
 
     let rir = ImpulseResponse::new(rt60, 50.0, 3.0, 80.0, drr);
