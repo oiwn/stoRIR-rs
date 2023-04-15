@@ -7,7 +7,7 @@
 ** stereo impulses
 ** mix impulses?
 ** DONE change ms types from f32 to u32
-** github CI/CD pipeline
+** github CI pipeline with tests and clippy
 ** github releases trough workflows
 ** DONE release build optimizations t0 Cargo.toml
-** write some tests
+** DONE write some tests

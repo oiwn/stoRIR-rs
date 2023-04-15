@@ -187,8 +187,7 @@ impl ImpulseResponse {
     ) -> f32 {
         let direct = data.slice(s![..=direct_sound_idx]).sum();
         let reverberant = data.slice(s![direct_sound_idx + 1..]).sum();
-        let drr = 10.0 * ((direct / reverberant).log10());
-        drr
+        10.0 * ((direct / reverberant).log10())
     }
 
     fn thin_out_reflections(
