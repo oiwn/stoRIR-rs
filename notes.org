@@ -10,3 +10,4 @@
 ** github CI/CD pipeline
 ** github releases trough workflows
 ** DONE release build optimizations t0 Cargo.toml
+** write some tests

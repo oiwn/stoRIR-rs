@@ -201,17 +201,19 @@ impl ImpulseResponse {
             .filter(|&idx| data[idx] != 0.0)
             .collect();
         let num_rays = ((ray_indices.len() as f32) * rate).round() as usize;
-        assert!(num_rays >= 1);
 
-        let mut rng = thread_rng();
-        let random_subset: Vec<usize> = ray_indices
-            .choose_multiple(&mut rng, num_rays)
-            .cloned()
-            .collect();
+        // assert!(num_rays >= 1);
+        if num_rays >= 1 {
+            let mut rng = thread_rng();
+            let random_subset: Vec<usize> = ray_indices
+                .choose_multiple(&mut rng, num_rays)
+                .cloned()
+                .collect();
 
-        for &index in random_subset.iter() {
-            data[index] = 0.0;
-        }
+            for &index in random_subset.iter() {
+                data[index] = 0.0;
+            }
+        };
     }
 
     fn get_num_samples(t: Duration, sample_rate: u32) -> u32 {
@@ -222,4 +224,23 @@ impl ImpulseResponse {
 /// Convert units from decibels to gain
 pub fn decibels_to_gain(decibels: f32) -> f32 {
     10.0_f32.powf(decibels / 20.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generation_process() {
+        let rir = ImpulseResponse::new(500.0, 50.0, 5.0, 50.0, -1.0);
+        let impulse = rir.generate(16000);
+        // find non zero elements
+        let mut non_zero_elements: u32 = 0;
+        for sample in &impulse {
+            if sample > &0.0 {
+                non_zero_elements += 1;
+            };
+        }
+        assert!(non_zero_elements > 0);
+    }
 }
