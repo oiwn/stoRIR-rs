@@ -88,7 +88,7 @@ impl ImpulseResponse {
         }
 
         // Change scale to dBFS (0 dB becomes the maximal level)
-        let max_val = data.max().unwrap_or(&0.0).clone();
+        let max_val = *data.max().unwrap_or(&0.0);
         *data -= max_val;
         data.mapv_inplace(decibels_to_gain);
         data.mapv_inplace(|x| x.powi(2));
@@ -125,7 +125,7 @@ impl ImpulseResponse {
         let drr_high = self.drr + 0.5;
 
         let mut current_drr =
-            Self::calculate_drr_energy_ratio(&data, direct_sound_idx);
+            Self::calculate_drr_energy_ratio(data, direct_sound_idx);
 
         if current_drr > drr_high {
             return;
