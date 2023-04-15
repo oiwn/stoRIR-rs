@@ -6,13 +6,13 @@ use ndarray_stats::QuantileExt;
 use std::cmp::Ordering;
 use std::time::Duration;
 
-// Stochastic impulse response.
-//
-// rt60: reverberation time [ms]
-// edt: early decay time [ms]
-// itdg: initial time delay gap [ms]
-// er_duration: early reflections duration [ms]
-// drr: direct to reverberant energy ratio [dB]
+/// Stochastic impulse response.
+///
+/// rt60: reverberation time [ms]
+/// edt: early decay time [ms]
+/// itdg: initial time delay gap [ms]
+/// er_duration: early reflections duration [ms]
+/// drr: direct to reverberant energy ratio [dB]
 #[derive(Debug)]
 pub struct ImpulseResponse {
     rt60: f32,
@@ -117,9 +117,9 @@ impl ImpulseResponse {
         direct_sound_idx: usize,
         early_ref_start: usize,
         early_ref_end: usize,
-        sampling_rate: u32,
+        sample_rate: u32,
     ) {
-        self.create_initial_time_delay_gap(data, direct_sound_idx, sampling_rate);
+        self.create_initial_time_delay_gap(data, direct_sound_idx, sample_rate);
 
         let drr_low = self.drr - 0.5;
         let drr_high = self.drr + 0.5;

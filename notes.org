@@ -3,9 +3,10 @@
 * Features
 ** DONE cli option to store into defined folder
 ** DONE command line options for storir
-** change binary name to storir
+** DONE change binary name to storir
 ** stereo impulses
-** change ms types from f32 to u32
+** mix impulses?
+** DONE change ms types from f32 to u32
 ** github CI/CD pipeline
 ** github releases trough workflows
 ** DONE release build optimizations t0 Cargo.toml

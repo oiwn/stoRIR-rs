@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use ndarray_rand::rand::Rng;
@@ -31,10 +31,10 @@ struct Args {
     er_duration: u32,
 }
 
-fn create_wav_file(
+fn create_wav_file<P: AsRef<Path>>(
     data: Vec<f32>,
     sample_rate: u32,
-    file_name: &str,
+    file_name: P,
 ) -> Result<(), hound::Error> {
     let spec = hound::WavSpec {
         channels: 1,
@@ -60,7 +60,10 @@ fn main() {
     println!("Saving impulses to {}!", args.folder);
     if !Path::new(&args.folder).exists() {
         match fs::create_dir(&args.folder) {
-            Ok(_) => println!("No such folder found, crate new one..."),
+            Ok(_) => println!(
+                "No such folder found, crate new one '{}' ...",
+                args.folder
+            ),
             Err(err) => eprint!("Error creating folder {} : {}", args.folder, err),
         }
     } else {
@@ -79,22 +82,23 @@ fn main() {
         drr,
     );
     for index in 1..=args.num_impulses {
+        // Platform independent filepath
+        let mut path_buf = PathBuf::new();
+        let file_name = format!(
+            "rt60_{}_edt_{}_itdg_{}_erd_{}_i{}.wav",
+            args.rt60, args.edt, args.itdg, args.er_duration, index
+        );
+        path_buf.push(args.folder.clone());
+        path_buf.push(file_name);
+
         let impulse = rir.generate(args.sample_rate);
-        match create_wav_file(
-            impulse,
-            args.sample_rate,
-            format!(
-                "{}/rt60_{}_edt_{}_itdg_{}_erd_{}_i{}.wav",
-                args.folder,
-                args.rt60,
-                args.edt,
-                args.itdg,
-                args.er_duration,
-                index
-            )
-            .as_str(),
-        ) {
-            Ok(()) => println!("WAV file created successfully."),
+        match create_wav_file(impulse, args.sample_rate, &path_buf) {
+            Ok(()) => {
+                println!(
+                    "WAV file '{}' created successfully.",
+                    path_buf.as_path().to_str().unwrap()
+                )
+            }
             Err(e) => eprintln!("Error: {}", e),
         };
     }
