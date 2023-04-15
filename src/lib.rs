@@ -230,7 +230,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generation_process() {
+    fn test_generation_process() {
         let rir = ImpulseResponse::new(500.0, 50.0, 5.0, 50.0, -1.0);
         let impulse = rir.generate(16000);
         // find non zero elements
@@ -241,5 +241,27 @@ mod tests {
             };
         }
         assert!(non_zero_elements > 0);
+    }
+
+    #[test]
+    fn test_decibels_to_gain() {
+        let input_values = vec![
+            (-60.0, 0.001),
+            (-20.0, 0.1),
+            (0.0, 1.0),
+            (20.0, 10.0),
+            (60.0, 1000.0),
+        ];
+
+        for (input, expected) in input_values {
+            let result = decibels_to_gain(input);
+            assert!(
+                (result - expected).abs() < f32::EPSILON,
+                "Input: {}, Expected: {}, Result: {}",
+                input,
+                expected,
+                result
+            );
+        }
     }
 }
