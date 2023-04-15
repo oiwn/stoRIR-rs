@@ -1,6 +1,6 @@
 [package]
-name = "storir-rs"
-version = "0.1.0"
+name = "storir"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,4 +11,12 @@ hound = "3.5.0"
 ndarray = "0.15.6"
 ndarray-rand = "0.14.0"
 ndarray-stats = "0.5.1"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+
+
 

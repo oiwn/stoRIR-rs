@@ -1,13 +1,34 @@
+use std::fs;
+use std::path::Path;
+
 use clap::Parser;
 use ndarray_rand::rand::Rng;
-use storir_rs::ImpulseResponse;
+use storir::ImpulseResponse;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
-    #[arg(short, long)]
+    /// Sample rate
+    #[arg(short, long, default_value = "44100")]
+    sample_rate: u32,
+    /// Folder to store wav files
+    #[arg(short, long, default_value = "impulses")]
     folder: String,
+    /// Number of impulses to generate
+    #[arg(short, long, default_value = "5")]
+    num_impulses: u32,
+    /// Reverberation time in [ms]
+    #[arg(long, default_value = "500")]
+    rt60: u32,
+    /// Early decay time [ms]
+    #[arg(long, default_value = "50")]
+    edt: u32,
+    /// Initial time delay gap [ms]
+    #[arg(long, default_value = "4")]
+    itdg: u32,
+    /// Early reflections duration [ms]
+    #[arg(long, default_value = "100")]
+    er_duration: u32,
 }
 
 fn create_wav_file(
@@ -35,21 +56,46 @@ fn create_wav_file(
 fn main() {
     let args = Args::parse();
 
+    // Save to folder
     println!("Saving impulses to {}!", args.folder);
+    if !Path::new(&args.folder).exists() {
+        match fs::create_dir(&args.folder) {
+            Ok(_) => println!("No such folder found, crate new one..."),
+            Err(err) => eprint!("Error creating folder {} : {}", args.folder, err),
+        }
+    } else {
+        println!("'{}' folder already exists...", args.folder)
+    };
 
-    let rt60: f32 = 500.0;
     let mut rng = ndarray_rand::rand::thread_rng();
-    let drr = (rt60 * (-1.0 / 100.0)) + rng.gen_range(0.0..rt60 * (1.0 / 100.0));
+    let drr = (args.rt60 as f32 * (-1.0 / 100.0))
+        + rng.gen_range(0.0..args.rt60 as f32 * (1.0 / 100.0));
 
-    let rir = ImpulseResponse::new(rt60, 50.0, 3.0, 80.0, drr);
-    for index in 1..=5 {
-        let output = rir.generate(44100);
-        match create_wav_file(output, 44100, format!("tmp/{}.wav", index).as_str())
-        {
+    let rir = ImpulseResponse::new(
+        args.rt60 as f32,
+        args.edt as f32,
+        args.itdg as f32,
+        args.er_duration as f32,
+        drr,
+    );
+    for index in 1..=args.num_impulses {
+        let impulse = rir.generate(args.sample_rate);
+        match create_wav_file(
+            impulse,
+            args.sample_rate,
+            format!(
+                "{}/rt60_{}_edt_{}_itdg_{}_erd_{}_i{}.wav",
+                args.folder,
+                args.rt60,
+                args.edt,
+                args.itdg,
+                args.er_duration,
+                index
+            )
+            .as_str(),
+        ) {
             Ok(()) => println!("WAV file created successfully."),
             Err(e) => eprintln!("Error: {}", e),
-        }
-
-        // println!("{:?}", output);
+        };
     }
 }

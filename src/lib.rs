@@ -22,11 +22,6 @@ pub struct ImpulseResponse {
     drr: f32,
 }
 
-/// Convert units from decibels to gain
-pub fn decibels_to_gain(decibels: f32) -> f32 {
-    10.0_f32.powf(decibels / 20.0)
-}
-
 impl ImpulseResponse {
     pub fn new(rt60: f32, edt: f32, itdg: f32, er_duration: f32, drr: f32) -> Self {
         if rt60 <= edt {
@@ -222,4 +217,9 @@ impl ImpulseResponse {
     fn get_num_samples(t: Duration, sample_rate: u32) -> u32 {
         (t.as_secs_f32() * sample_rate as f32).round() as u32
     }
+}
+
+/// Convert units from decibels to gain
+pub fn decibels_to_gain(decibels: f32) -> f32 {
+    10.0_f32.powf(decibels / 20.0)
 }
