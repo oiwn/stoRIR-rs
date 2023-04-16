@@ -3,11 +3,16 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use ndarray_rand::rand::Rng;
-use storir::ImpulseResponse;
+use storir::{
+    ImpulseResponseGenerator, ImpulseResponseImproved, ImpulseResponseSimple,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// Algo
+    #[arg(short, long, default_value = "simple")]
+    algo: String,
     /// Sample rate
     #[arg(short, long, default_value = "44100")]
     sample_rate: u32,
@@ -74,19 +79,30 @@ fn main() {
     let drr = (args.rt60 as f32 * (-1.0 / 100.0))
         + rng.gen_range(0.0..args.rt60 as f32 * (1.0 / 100.0));
 
-    let rir = ImpulseResponse::new(
-        args.rt60 as f32,
-        args.edt as f32,
-        args.itdg as f32,
-        args.er_duration as f32,
-        drr,
-    );
+    let rir: Box<dyn ImpulseResponseGenerator> = match args.algo.as_str() {
+        "simple" => Box::new(ImpulseResponseSimple::new(
+            args.rt60 as f32,
+            args.edt as f32,
+            args.itdg as f32,
+            args.er_duration as f32,
+            drr,
+        )),
+        "improved" => Box::new(ImpulseResponseImproved::new(
+            args.rt60 as f32,
+            args.edt as f32,
+            args.itdg as f32,
+            args.er_duration as f32,
+            drr,
+        )),
+        _ => panic!("Wrong algo! should be in [simple, improved]"),
+    };
+
     for index in 1..=args.num_impulses {
         // Platform independent filepath
         let mut path_buf = PathBuf::new();
         let file_name = format!(
-            "rt60_{}_edt_{}_itdg_{}_erd_{}_i{}.wav",
-            args.rt60, args.edt, args.itdg, args.er_duration, index
+            "{}_rt60_{}_edt_{}_itdg_{}_erd_{}_i{}.wav",
+            args.algo, args.rt60, args.edt, args.itdg, args.er_duration, index
         );
         path_buf.push(args.folder.clone());
         path_buf.push(file_name);
