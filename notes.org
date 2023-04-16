@@ -3,7 +3,9 @@
 * Features
 ** DONE cli option to store into defined folder
 ** DONE command line options for storir
-** DONE change binary name to storir
+** DONE change binary name to storira
+** DONE implement trait ImpulseResponseGenerator
+** DONE ImpulseResponse to ImpulseResponseSimple for original algo
 ** stereo impulses
 ** mix impulses?
 ** DONE change ms types from f32 to u32
