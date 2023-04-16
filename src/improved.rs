@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_generation_process() {
-        let rir = ImpulseResponseSimple::new(500.0, 50.0, 5.0, 50.0, -1.0);
+        let rir = ImpulseResponseImproved::new(500.0, 50.0, 5.0, 50.0, -1.0);
         let impulse = rir.generate(16000);
         // find non zero elements
         let mut non_zero_elements: u32 = 0;
